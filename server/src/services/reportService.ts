@@ -1,13 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
-import { db } from '../database/connection';
+import { supabase } from '../database/supabase';
 import {
   CreateReportRequest,
   UpdateReportRequest,
   ReportResponse,
   ReportListResponse,
   ReportListQuery,
-  ReportRow,
   ValidationError,
   ApiErrorCode
 } from '../types';
@@ -28,44 +27,33 @@ export class ReportService {
       throw createValidationError('입력 데이터가 올바르지 않습니다', validationErrors);
     }
 
-    const id = uuidv4();
     const passwordHash = await bcrypt.hash(data.password, this.SALT_ROUNDS);
-    const now = new Date().toISOString();
 
     try {
-      await db.run(
-        `INSERT INTO reports (
-          id, campus, building, location, problem_types, custom_problem, 
-          description, password_hash, empathy_count, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-        [
-          id,
-          data.campus,
-          data.building,
-          data.location,
-          JSON.stringify(data.problemTypes),
-          data.customProblem || null,
-          data.description,
-          passwordHash,
-          now,
-          now
-        ]
-      );
+      const { data: insertData, error } = await supabase
+        .from('reports')
+        .insert({
+          campus: data.campus,
+          building: data.building,
+          location: data.location,
+          problem_types: data.problemTypes,
+          custom_problem: data.customProblem || null,
+          description: data.description,
+          password_hash: passwordHash,
+          empathy_count: 0
+        })
+        .select()
+        .single();
 
-      return this.mapRowToResponse({
-        id,
-        campus: data.campus,
-        building: data.building,
-        location: data.location,
-        problem_types: JSON.stringify(data.problemTypes),
-        custom_problem: data.customProblem || null,
-        description: data.description,
-        password_hash: passwordHash,
-        empathy_count: 0,
-        created_at: now,
-        updated_at: now
-      });
+      if (error) {
+        throw createServerError('제보 저장 중 오류가 발생했습니다', error);
+      }
+
+      return this.mapSupabaseRowToResponse(insertData);
     } catch (error) {
+      if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
+        throw error;
+      }
       throw createServerError('제보 저장 중 오류가 발생했습니다', error);
     }
   }
@@ -80,52 +68,40 @@ export class ReportService {
     } = query;
 
     const offset = (page - 1) * limit;
-    
-    // Build WHERE clause
-    const whereConditions: string[] = [];
-    const params: any[] = [];
-
-    if (campus && campus !== 'all') {
-      whereConditions.push('campus = ?');
-      params.push(campus);
-    }
-
-    if (building) {
-      whereConditions.push('building LIKE ?');
-      params.push(`%${building}%`);
-    }
-
-    const whereClause = whereConditions.length > 0 
-      ? `WHERE ${whereConditions.join(' AND ')}`
-      : '';
-
-    // Build ORDER BY clause
-    const orderBy = sort === 'empathy' 
-      ? 'ORDER BY empathy_count DESC, created_at DESC'
-      : 'ORDER BY created_at DESC';
 
     try {
-      // Get total count
-      const countQuery = `SELECT COUNT(*) as total FROM reports ${whereClause}`;
-      const countResult = await db.get<{ total: number }>(countQuery, params);
-      const total = countResult?.total || 0;
+      // Build query
+      let supabaseQuery = supabase
+        .from('reports')
+        .select('id, campus, building, location, problem_types, custom_problem, description, empathy_count, created_at, updated_at', { count: 'exact' });
 
-      // Get reports
-      const reportsQuery = `
-        SELECT id, campus, building, location, problem_types, custom_problem,
-               description, empathy_count, created_at, updated_at
-        FROM reports 
-        ${whereClause}
-        ${orderBy}
-        LIMIT ? OFFSET ?
-      `;
-      
-      const reportRows = await db.all<ReportRow>(
-        reportsQuery, 
-        [...params, limit, offset]
-      );
+      // Apply filters
+      if (campus && campus !== 'all') {
+        supabaseQuery = supabaseQuery.eq('campus', campus);
+      }
 
-      const reports = reportRows.map(row => this.mapRowToResponse(row));
+      if (building) {
+        supabaseQuery = supabaseQuery.ilike('building', `%${building}%`);
+      }
+
+      // Apply sorting
+      if (sort === 'empathy') {
+        supabaseQuery = supabaseQuery.order('empathy_count', { ascending: false }).order('created_at', { ascending: false });
+      } else {
+        supabaseQuery = supabaseQuery.order('created_at', { ascending: false });
+      }
+
+      // Apply pagination
+      supabaseQuery = supabaseQuery.range(offset, offset + limit - 1);
+
+      const { data: reportRows, error, count } = await supabaseQuery;
+
+      if (error) {
+        throw createServerError('제보 목록 조회 중 오류가 발생했습니다', error);
+      }
+
+      const total = count || 0;
+      const reports = (reportRows || []).map(row => this.mapSupabaseRowToResponse(row));
       const totalPages = Math.ceil(total / limit);
 
       return {
@@ -136,21 +112,34 @@ export class ReportService {
         totalPages
       };
     } catch (error) {
+      if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
+        throw error;
+      }
       throw createServerError('제보 목록 조회 중 오류가 발생했습니다', error);
     }
   }
 
   async getReportById(id: string): Promise<ReportResponse | null> {
     try {
-      const row = await db.get<ReportRow>(
-        `SELECT id, campus, building, location, problem_types, custom_problem,
-                description, empathy_count, created_at, updated_at
-         FROM reports WHERE id = ?`,
-        [id]
-      );
+      const { data, error } = await supabase
+        .from('reports')
+        .select('id, campus, building, location, problem_types, custom_problem, description, empathy_count, created_at, updated_at')
+        .eq('id', id)
+        .single();
 
-      return row ? this.mapRowToResponse(row) : null;
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No rows returned
+          return null;
+        }
+        throw createServerError('제보 조회 중 오류가 발생했습니다', error);
+      }
+
+      return data ? this.mapSupabaseRowToResponse(data) : null;
     } catch (error) {
+      if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
+        throw error;
+      }
       throw createServerError('제보 조회 중 오류가 발생했습니다', error);
     }
   }
@@ -168,35 +157,35 @@ export class ReportService {
       throw createValidationError('입력 데이터가 올바르지 않습니다', validationErrors);
     }
 
-    const updateFields: string[] = [];
-    const params: any[] = [];
+    const updateData: any = {};
+    let hasUpdates = false;
 
     if (data.campus !== undefined) {
-      updateFields.push('campus = ?');
-      params.push(data.campus);
+      updateData.campus = data.campus;
+      hasUpdates = true;
     }
     if (data.building !== undefined) {
-      updateFields.push('building = ?');
-      params.push(data.building);
+      updateData.building = data.building;
+      hasUpdates = true;
     }
     if (data.location !== undefined) {
-      updateFields.push('location = ?');
-      params.push(data.location);
+      updateData.location = data.location;
+      hasUpdates = true;
     }
     if (data.problemTypes !== undefined) {
-      updateFields.push('problem_types = ?');
-      params.push(JSON.stringify(data.problemTypes));
+      updateData.problem_types = data.problemTypes;
+      hasUpdates = true;
     }
     if (data.customProblem !== undefined) {
-      updateFields.push('custom_problem = ?');
-      params.push(data.customProblem || null);
+      updateData.custom_problem = data.customProblem || null;
+      hasUpdates = true;
     }
     if (data.description !== undefined) {
-      updateFields.push('description = ?');
-      params.push(data.description);
+      updateData.description = data.description;
+      hasUpdates = true;
     }
 
-    if (updateFields.length === 0) {
+    if (!hasUpdates) {
       // No fields to update, just return current report
       const current = await this.getReportById(id);
       if (!current) {
@@ -205,22 +194,22 @@ export class ReportService {
       return current;
     }
 
-    updateFields.push('updated_at = ?');
-    params.push(new Date().toISOString());
-    params.push(id);
-
     try {
-      await db.run(
-        `UPDATE reports SET ${updateFields.join(', ')} WHERE id = ?`,
-        params
-      );
+      const { data: updatedData, error } = await supabase
+        .from('reports')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
 
-      const updated = await this.getReportById(id);
-      if (!updated) {
-        throw createNotFoundError('제보를 찾을 수 없습니다');
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw createNotFoundError('제보를 찾을 수 없습니다');
+        }
+        throw createServerError('제보 수정 중 오류가 발생했습니다', error);
       }
 
-      return updated;
+      return this.mapSupabaseRowToResponse(updatedData);
     } catch (error) {
       // Re-throw known errors
       if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
@@ -238,10 +227,13 @@ export class ReportService {
     }
 
     try {
-      const result = await db.run('DELETE FROM reports WHERE id = ?', [id]);
+      const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', id);
       
-      if (result.changes === 0) {
-        throw createNotFoundError('제보를 찾을 수 없습니다');
+      if (error) {
+        throw createServerError('제보 삭제 중 오류가 발생했습니다', error);
       }
     } catch (error) {
       // Re-throw known errors
@@ -254,16 +246,17 @@ export class ReportService {
 
   async verifyPassword(id: string, password: string): Promise<boolean> {
     try {
-      const row = await db.get<{ password_hash: string }>(
-        'SELECT password_hash FROM reports WHERE id = ?',
-        [id]
-      );
+      const { data, error } = await supabase
+        .from('reports')
+        .select('password_hash')
+        .eq('id', id)
+        .single();
 
-      if (!row) {
+      if (error || !data) {
         return false;
       }
 
-      return await bcrypt.compare(password, row.password_hash);
+      return await bcrypt.compare(password, data.password_hash);
     } catch (error) {
       return false;
     }
@@ -365,13 +358,13 @@ export class ReportService {
     return errors;
   }
 
-  private mapRowToResponse(row: ReportRow): ReportResponse {
+  private mapSupabaseRowToResponse(row: any): ReportResponse {
     return {
       id: row.id,
       campus: row.campus,
       building: row.building,
       location: row.location,
-      problemTypes: JSON.parse(row.problem_types),
+      problemTypes: Array.isArray(row.problem_types) ? row.problem_types : JSON.parse(row.problem_types || '[]'),
       customProblem: row.custom_problem || undefined,
       description: row.description,
       empathyCount: row.empathy_count,

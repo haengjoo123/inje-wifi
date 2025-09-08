@@ -1,9 +1,8 @@
-import { db } from '../database/connection';
+import { supabase } from '../database/supabase';
 import {
   ReportResponse,
   ExportDataResponse,
   ReportExportData,
-  ReportRow,
   ValidationError,
   ApiErrorCode
 } from '../types';
@@ -32,10 +31,16 @@ export class AdminService {
     }
 
     try {
-      const result = await db.run('DELETE FROM reports WHERE id = ?', [reportId]);
+      const { error } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', reportId);
       
-      if (result.changes === 0) {
-        throw createNotFoundError('제보를 찾을 수 없습니다');
+      if (error) {
+        if (error.code === 'PGRST116') {
+          throw createNotFoundError('제보를 찾을 수 없습니다');
+        }
+        throw createServerError('제보 삭제 중 오류가 발생했습니다', error);
       }
     } catch (error) {
       // Re-throw known errors
@@ -56,19 +61,21 @@ export class AdminService {
 
     try {
       // 모든 제보 데이터 조회 (최신순)
-      const reportRows = await db.all<ReportRow>(
-        `SELECT id, campus, building, location, problem_types, custom_problem,
-                description, empathy_count, created_at, updated_at
-         FROM reports 
-         ORDER BY created_at DESC`
-      );
+      const { data: reportRows, error } = await supabase
+        .from('reports')
+        .select('id, campus, building, location, problem_types, custom_problem, description, empathy_count, created_at, updated_at')
+        .order('created_at', { ascending: false });
 
-      const reports: ReportExportData[] = reportRows.map(row => ({
+      if (error) {
+        throw createServerError('데이터 내보내기 중 오류가 발생했습니다', error);
+      }
+
+      const reports: ReportExportData[] = (reportRows || []).map(row => ({
         id: row.id,
         campus: row.campus,
         building: row.building,
         location: row.location,
-        problemTypes: JSON.parse(row.problem_types).join(', '),
+        problemTypes: Array.isArray(row.problem_types) ? row.problem_types.join(', ') : JSON.parse(row.problem_types || '[]').join(', '),
         customProblem: row.custom_problem || undefined,
         description: row.description,
         empathyCount: row.empathy_count,
@@ -81,6 +88,9 @@ export class AdminService {
         exportedAt: new Date().toLocaleString('ko-KR')
       };
     } catch (error) {
+      if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
+        throw error;
+      }
       throw createServerError('데이터 내보내기 중 오류가 발생했습니다', error);
     }
   }
@@ -95,48 +105,79 @@ export class AdminService {
 
     try {
       // 전체 제보 수
-      const totalResult = await db.get<{ total: number }>(
-        'SELECT COUNT(*) as total FROM reports'
-      );
+      const { count: totalCount, error: totalError } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true });
+
+      if (totalError) {
+        throw createServerError('통계 조회 중 오류가 발생했습니다', totalError);
+      }
       
-      // 캠퍼스별 제보 수
-      const campusStats = await db.all<{ campus: string; count: number }>(
-        'SELECT campus, COUNT(*) as count FROM reports GROUP BY campus ORDER BY count DESC'
-      );
+      // 캠퍼스별 제보 수 (Supabase에서는 직접 GROUP BY 지원하지 않으므로 모든 데이터 가져와서 처리)
+      const { data: allReports, error: reportsError } = await supabase
+        .from('reports')
+        .select('campus');
+
+      if (reportsError) {
+        throw createServerError('통계 조회 중 오류가 발생했습니다', reportsError);
+      }
+
+      const campusStats = (allReports || []).reduce((acc: { campus: string; count: number }[], report) => {
+        const existing = acc.find(item => item.campus === report.campus);
+        if (existing) {
+          existing.count++;
+        } else {
+          acc.push({ campus: report.campus, count: 1 });
+        }
+        return acc;
+      }, []).sort((a, b) => b.count - a.count);
 
       // 최근 7일 제보 수
-      const recentResult = await db.get<{ recent: number }>(
-        `SELECT COUNT(*) as recent FROM reports 
-         WHERE created_at >= datetime('now', '-7 days')`
-      );
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      
+      const { count: recentCount, error: recentError } = await supabase
+        .from('reports')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      if (recentError) {
+        throw createServerError('통계 조회 중 오류가 발생했습니다', recentError);
+      }
 
       // 가장 많은 공감을 받은 제보 TOP 5
-      const topEmpathy = await db.all<ReportRow>(
-        `SELECT id, campus, building, location, problem_types, custom_problem,
-                description, empathy_count, created_at, updated_at
-         FROM reports 
-         ORDER BY empathy_count DESC, created_at DESC 
-         LIMIT 5`
-      );
+      const { data: topEmpathy, error: topError } = await supabase
+        .from('reports')
+        .select('id, campus, building, location, problem_types, custom_problem, description, empathy_count, created_at, updated_at')
+        .order('empathy_count', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (topError) {
+        throw createServerError('통계 조회 중 오류가 발생했습니다', topError);
+      }
 
       return {
-        totalReports: totalResult?.total || 0,
-        recentReports: recentResult?.recent || 0,
+        totalReports: totalCount || 0,
+        recentReports: recentCount || 0,
         campusStats,
-        topEmpathyReports: topEmpathy.map(row => this.mapRowToResponse(row))
+        topEmpathyReports: (topEmpathy || []).map(row => this.mapSupabaseRowToResponse(row))
       };
     } catch (error) {
+      if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
+        throw error;
+      }
       throw createServerError('통계 조회 중 오류가 발생했습니다', error);
     }
   }
 
-  private mapRowToResponse(row: ReportRow): ReportResponse {
+  private mapSupabaseRowToResponse(row: any): ReportResponse {
     return {
       id: row.id,
       campus: row.campus,
       building: row.building,
       location: row.location,
-      problemTypes: JSON.parse(row.problem_types),
+      problemTypes: Array.isArray(row.problem_types) ? row.problem_types : JSON.parse(row.problem_types || '[]'),
       customProblem: row.custom_problem || undefined,
       description: row.description,
       empathyCount: row.empathy_count,

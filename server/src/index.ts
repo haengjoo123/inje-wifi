@@ -22,8 +22,7 @@ import {
   performanceMonitor,
   logger 
 } from './middleware/logging';
-import { MigrationManager } from './utils/migration';
-import { getDatabase } from './database/connection';
+import { testConnection } from './database/supabase';
 
 dotenv.config();
 
@@ -105,15 +104,7 @@ app.use(errorHandler);
 // Graceful shutdown handler
 const gracefulShutdown = async (signal: string) => {
   logger.info(`Received ${signal}. Starting graceful shutdown...`);
-  
-  try {
-    // Close database connection
-    const { db } = await import('./database/connection');
-    await db.close();
-    logger.info('Database connection closed.');
-  } catch (err) {
-    logger.error('Error closing database connection:', err);
-  }
+  logger.info('Supabase 연결은 자동으로 관리되므로 별도 종료 작업이 필요하지 않습니다.');
   process.exit(0);
 };
 
@@ -126,15 +117,13 @@ const startServer = async () => {
   try {
     logger.info('Starting server initialization...');
     
-    // Connect to database first
-    const { db } = await import('./database/connection');
-    await db.connect();
+    // Test Supabase connection
+    const isConnected = await testConnection();
+    if (!isConnected) {
+      throw new Error('Supabase 데이터베이스 연결에 실패했습니다');
+    }
     
-    // Run database migrations
-    const database = getDatabase();
-    const migrationManager = new MigrationManager(database);
-    await migrationManager.runMigrations();
-    logger.info('Database initialized successfully');
+    logger.info('✅ Supabase 데이터베이스 연결 성공');
     
     // Start server
     const server = app.listen(PORT, HOST, () => {
@@ -142,6 +131,7 @@ const startServer = async () => {
       logger.info(`📊 Health check: http://${HOST}:${PORT}/health`);
       logger.info(`📈 Metrics: http://${HOST}:${PORT}/metrics`);
       logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+      logger.info(`🗄️ Database: Supabase (inje-wifi)`);
     });
     
     // Handle server errors
