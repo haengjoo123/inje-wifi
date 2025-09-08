@@ -8,4 +8,7 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
   },
+  esbuild: {
+    target: 'es2020'
+  }
 })
