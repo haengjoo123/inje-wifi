@@ -52,29 +52,33 @@ app.use(cookieParser());
 app.use(requestLogger);
 app.use(performanceMonitor);
 
+// Health check routes (no rate limiting)
+app.use('/health', healthRouter);
+app.use('/metrics', healthRouter);
+
 // Rate limiting (apply to API routes only)
 app.use('/api', apiRateLimit);
-
-// Serve static files from client build
-if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../../client/dist');
-  app.use(express.static(clientBuildPath));
-  
-  // Handle client-side routing - serve index.html for all non-API routes
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/') || req.path.startsWith('/health') || req.path.startsWith('/metrics')) {
-      return next();
-    }
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-  });
-}
-
-// Health check routes (no rate limiting)
-app.use('/', healthRouter);
 
 // API Routes
 app.use('/api/reports', reportsRouter);
 app.use('/api/reports', empathyRouter);
+
+// Serve static files from client build (must be after API routes)
+if (process.env.NODE_ENV === 'production') {
+  const clientBuildPath = path.join(__dirname, '../../client/dist');
+  
+  // Log the path for debugging
+  logger.info(`Serving static files from: ${clientBuildPath}`);
+  
+  app.use(express.static(clientBuildPath));
+  
+  // Handle client-side routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    const indexPath = path.join(clientBuildPath, 'index.html');
+    logger.info(`Serving index.html from: ${indexPath} for path: ${req.path}`);
+    res.sendFile(indexPath);
+  });
+}
 
 // Error handling middleware (must be last)
 app.use(notFoundHandler);
