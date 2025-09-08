@@ -64,19 +64,34 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/reports', empathyRouter);
 
 // Serve static files from client build (must be after API routes)
-if (process.env.NODE_ENV === 'production') {
-  const clientBuildPath = path.join(__dirname, '../../client/dist');
-  
-  // Log the path for debugging
-  logger.info(`Serving static files from: ${clientBuildPath}`);
-  
+const clientBuildPath = path.join(__dirname, '../../client/dist');
+
+// Log environment and path for debugging
+logger.info(`Environment: ${process.env.NODE_ENV}`);
+logger.info(`Serving static files from: ${clientBuildPath}`);
+
+// Always serve static files in production-like environments
+if (process.env.NODE_ENV === 'production' || process.env.RENDER) {
   app.use(express.static(clientBuildPath));
   
   // Handle client-side routing - serve index.html for all non-API routes
   app.get('*', (req, res) => {
     const indexPath = path.join(clientBuildPath, 'index.html');
     logger.info(`Serving index.html from: ${indexPath} for path: ${req.path}`);
-    res.sendFile(indexPath);
+    res.sendFile(indexPath, (err) => {
+      if (err) {
+        logger.error(`Error serving index.html: ${err.message}`);
+        res.status(500).send('Internal Server Error');
+      }
+    });
+  });
+} else {
+  // Development fallback
+  app.get('*', (req, res) => {
+    res.status(404).json({ 
+      error: 'Not Found', 
+      message: 'This route is not available in development mode. Use the client dev server.' 
+    });
   });
 }
 
