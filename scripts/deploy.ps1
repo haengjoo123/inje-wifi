@@ -116,11 +116,23 @@ Write-Host "📍 배포 위치: $(Get-Location)\$BuildDir" -ForegroundColor Cyan
 Write-Host "🌐 서버 시작: cd $BuildDir\server && npm start" -ForegroundColor Cyan
 
 # 11. 배포 정보 저장
+try {
+    $GitVersion = git rev-parse HEAD 2>$null
+} catch {
+    $GitVersion = "unknown"
+}
+
+try {
+    $GitBranch = git branch --show-current 2>$null
+} catch {
+    $GitBranch = "unknown"
+}
+
 $DeploymentInfo = @{
     environment = $Environment
     deployedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-    version = try { git rev-parse HEAD } catch { "unknown" }
-    branch = try { git branch --show-current } catch { "unknown" }
+    version = $GitVersion
+    branch = $GitBranch
 } | ConvertTo-Json -Depth 2
 
 $DeploymentInfo | Out-File "$BuildDir\deployment-info.json" -Encoding UTF8
@@ -128,16 +140,18 @@ $DeploymentInfo | Out-File "$BuildDir\deployment-info.json" -Encoding UTF8
 Write-Host "📊 배포 정보가 $BuildDir\deployment-info.json에 저장되었습니다." -ForegroundColor Cyan
 
 # 12. 헬스체크 (선택사항)
-if (Get-Command curl -ErrorAction SilentlyContinue) {
-    Write-Host "🏥 헬스체크 수행 중..." -ForegroundColor Yellow
-    Start-Sleep -Seconds 5
-    try {
-        $response = curl -f http://localhost:3000/health 2>$null
-        Write-Host "✅ 서버가 정상적으로 실행 중입니다." -ForegroundColor Green
+Write-Host "🏥 헬스체크 수행 중..." -ForegroundColor Yellow
+Start-Sleep -Seconds 5
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:3000/health" -ErrorAction SilentlyContinue
+    if ($response -and $response.StatusCode -eq 200) {
+        Write-Host "✅ 서버가 정상적으로 실행 중입니다. 응답 크기: $($response.Content.Length) bytes" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ 서버 응답이 예상과 다릅니다. 수동으로 확인해주세요." -ForegroundColor Yellow
     }
-    catch {
-        Write-Host "⚠️ 서버 헬스체크 실패. 수동으로 확인해주세요." -ForegroundColor Yellow
-    }
+}
+catch {
+    Write-Host "⚠️ 서버 헬스체크 실패. 서버가 아직 시작되지 않았거나 접근할 수 없습니다." -ForegroundColor Yellow
 }
 
 Write-Host "🎉 배포 프로세스가 완료되었습니다!" -ForegroundColor Green
