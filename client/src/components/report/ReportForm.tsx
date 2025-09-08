@@ -10,9 +10,9 @@ interface ReportFormProps {
   showPasswordField?: boolean;
 }
 
-const ReportForm: React.FC<ReportFormProps> = ({ 
-  onSubmit, 
-  isLoading = false, 
+const ReportForm: React.FC<ReportFormProps> = ({
+  onSubmit,
+  isLoading = false,
   initialData,
   submitButtonText = '제보하기',
   showPasswordField = true
@@ -38,7 +38,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
       // Real-time validation for the changed field
       const error = validateReportField(field, value, newFormState);
-      
+
       return {
         ...newFormState,
         errors: {
@@ -54,7 +54,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
       const newProblemTypes = checked
         ? [...prev.problemTypes, problemType]
         : prev.problemTypes.filter(type => type !== problemType);
-      
+
       const newFormState = {
         ...prev,
         problemTypes: newProblemTypes
@@ -62,13 +62,13 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
       // Validate problem types
       const problemTypesError = validateReportField('problemTypes', newProblemTypes, newFormState);
-      
+
       // Also validate custom problem if "기타" selection changes
       let customProblemError = prev.errors.customProblem;
       if (problemType === '기타') {
         customProblemError = validateReportField('customProblem', prev.customProblem, newFormState) || '';
       }
-      
+
       return {
         ...newFormState,
         errors: {
@@ -82,7 +82,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate entire form before submission
     const formData = {
       campus: formState.campus,
@@ -95,7 +95,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
     };
 
     const validationErrors = validateReportForm(formData);
-    
+
     if (hasValidationErrors(validationErrors)) {
       setFormState(prev => ({
         ...prev,
@@ -128,11 +128,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
           id="campus"
           value={formState.campus}
           onChange={(e) => handleInputChange('campus', e.target.value)}
-          className={`form-select ${
-            formState.errors.campus 
-              ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-              : ''
-          }`}
+          className={`form-select ${formState.errors.campus
+            ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+            : ''
+            }`}
           disabled={isLoading}
         >
           <option value="">캠퍼스를 선택해주세요</option>
@@ -158,11 +157,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
           value={formState.building}
           onChange={(e) => handleInputChange('building', e.target.value)}
           placeholder="예: 하연관, 도서관, 신어관"
-          className={`form-input ${
-            formState.errors.building 
-              ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-              : ''
-          }`}
+          className={`form-input ${formState.errors.building
+            ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+            : ''
+            }`}
           disabled={isLoading || !formState.campus}
         />
         {formState.errors.building && (
@@ -181,11 +179,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
           value={formState.location}
           onChange={(e) => handleInputChange('location', e.target.value)}
           placeholder="예: 3층 301호, 1층 로비, 지하 1층 카페"
-          className={`form-input ${
-            formState.errors.location 
-              ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-              : ''
-          }`}
+          className={`form-input ${formState.errors.location
+            ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+            : ''
+            }`}
           disabled={isLoading}
         />
         {formState.errors.location && (
@@ -230,11 +227,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
             value={formState.customProblem}
             onChange={(e) => handleInputChange('customProblem', e.target.value)}
             placeholder="겪고 있는 문제를 구체적으로 설명해주세요"
-            className={`form-input ${
-              formState.errors.customProblem 
-                ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-                : ''
-            }`}
+            className={`form-input ${formState.errors.customProblem
+              ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+              : ''
+              }`}
             disabled={isLoading}
           />
           {formState.errors.customProblem && (
@@ -254,22 +250,20 @@ const ReportForm: React.FC<ReportFormProps> = ({
           onChange={(e) => handleInputChange('description', e.target.value)}
           placeholder="와이파이 문제 상황을 자세히 설명해주세요 (최소 10자 이상)"
           rows={4}
-          className={`form-textarea ${
-            formState.errors.description 
-              ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-              : ''
-          }`}
+          className={`form-textarea ${formState.errors.description
+            ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+            : ''
+            }`}
           disabled={isLoading}
         />
         <div className="mt-2 flex justify-between items-center">
           {formState.errors.description && (
             <p className="form-error">{formState.errors.description}</p>
           )}
-          <div className={`text-sm ml-auto px-2 py-1 rounded-full ${
-            formState.description.length >= 20 
-              ? 'bg-success-100 text-success-700' 
-              : 'bg-secondary-100 text-secondary-600'
-          }`}>
+          <div className={`text-sm ml-auto px-2 py-1 rounded-full ${formState.description.length >= 20
+            ? 'bg-success-100 text-success-700'
+            : 'bg-secondary-100 text-secondary-600'
+            }`}>
             {formState.description.length}/10자 이상
             {formState.description.length >= 10 && (
               <span className="ml-1">✓</span>
@@ -291,11 +285,10 @@ const ReportForm: React.FC<ReportFormProps> = ({
             onChange={(e) => handleInputChange('password', e.target.value)}
             placeholder="4자리 숫자 (제보 수정/삭제 시 필요)"
             maxLength={4}
-            className={`form-input max-w-xs ${
-              formState.errors.password 
-                ? 'border-error-300 focus:ring-error-500 focus:border-error-500' 
-                : ''
-            }`}
+            className={`form-input max-w-xs ${formState.errors.password
+              ? 'border-error-300 focus:ring-error-500 focus:border-error-500'
+              : ''
+              }`}
             disabled={isLoading}
           />
           <div className="mt-2 p-3 bg-warning-50 border border-warning-200 rounded-lg">

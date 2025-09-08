@@ -16,13 +16,15 @@ export const securityHeaders = (req: Request, res: Response, next: NextFunction)
   }
   
   // 콘텐츠 보안 정책
+  const apiUrl = process.env.VITE_API_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://wifi-report-system.onrender.com' : 'http://localhost:3001');
+  
   res.setHeader('Content-Security-Policy', 
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
-    "style-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "img-src 'self' data: https:; " +
-    "font-src 'self'; " +
-    "connect-src 'self';"
+    "font-src 'self' https://fonts.gstatic.com; " +
+    `connect-src 'self' ${apiUrl};`
   );
   
   // 레퍼러 정책
