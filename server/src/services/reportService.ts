@@ -30,13 +30,28 @@ export class ReportService {
     const passwordHash = await bcrypt.hash(data.password, this.SALT_ROUNDS);
 
     try {
+      // Ensure problem_types is properly formatted as JSON
+      const problemTypesJson = Array.isArray(data.problemTypes) 
+        ? data.problemTypes 
+        : JSON.parse(data.problemTypes);
+
+      console.log('Creating report with data:', {
+        campus: data.campus,
+        building: data.building,
+        location: data.location,
+        problem_types: problemTypesJson,
+        custom_problem: data.customProblem || null,
+        description: data.description,
+        description_length: data.description?.length
+      });
+
       const { data: insertData, error } = await supabase
         .from('reports')
         .insert({
           campus: data.campus,
           building: data.building,
           location: data.location,
-          problem_types: data.problemTypes,
+          problem_types: problemTypesJson,
           custom_problem: data.customProblem || null,
           description: data.description,
           password_hash: passwordHash,
@@ -46,11 +61,13 @@ export class ReportService {
         .single();
 
       if (error) {
+        console.error('Supabase insert error:', error);
         throw createServerError('제보 저장 중 오류가 발생했습니다', error);
       }
 
       return this.mapSupabaseRowToResponse(insertData);
     } catch (error) {
+      console.error('Report creation error:', error);
       if (error && typeof error === 'object' && ('code' in error || error instanceof Error)) {
         throw error;
       }
@@ -296,7 +313,7 @@ export class ReportService {
     if (!data.description || data.description.trim().length < 10) {
       errors.push({
         field: 'description',
-        message: '문제 설명을 20자 이상 입력해주세요'
+        message: '문제 설명을 10자 이상 입력해주세요'
       });
     }
 
@@ -344,7 +361,7 @@ export class ReportService {
     if (data.description !== undefined && data.description.trim().length < 10) {
       errors.push({
         field: 'description',
-        message: '문제 설명을 20자 이상 입력해주세요'
+        message: '문제 설명을 10자 이상 입력해주세요'
       });
     }
 

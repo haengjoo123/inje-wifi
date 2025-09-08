@@ -260,7 +260,7 @@ const ReportForm: React.FC<ReportFormProps> = ({
           {formState.errors.description && (
             <p className="form-error">{formState.errors.description}</p>
           )}
-          <div className={`text-sm ml-auto px-2 py-1 rounded-full ${formState.description.length >= 20
+          <div className={`text-sm ml-auto px-2 py-1 rounded-full ${formState.description.length >= 10
             ? 'bg-success-100 text-success-700'
             : 'bg-secondary-100 text-secondary-600'
             }`}>
