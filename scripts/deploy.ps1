@@ -102,7 +102,7 @@ if (Test-Path "client\.env.$Environment") {
 # 9. 프로덕션 의존성 설치
 Write-Host "📦 프로덕션 의존성 설치 중..." -ForegroundColor Yellow
 Set-Location "$BuildDir\server"
-npm ci --only=production
+npm install --only=production
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ 프로덕션 의존성 설치 실패" -ForegroundColor Red
     Set-Location ..\..
