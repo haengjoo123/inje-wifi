@@ -1,0 +1,38 @@
+{
+  "name": "wifi-report-system",
+  "version": "1.0.0",
+  "description": "인제대학교 와이파이 문제 제보 시스템",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "cd client && npm run build",
+    "build:server": "cd server && npm run build",
+    "start": "cd server && npm start",
+    "start:prod": "NODE_ENV=production cd server && npm start",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "test": "npm run test:server && npm run test:client",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:report": "playwright show-report",
+    "lint": "npm run lint:server && npm run lint:client",
+    "lint:server": "cd server && npm run lint",
+    "lint:client": "cd client && npm run lint",
+    "deploy:staging": "bash scripts/deploy.sh staging",
+    "deploy:production": "bash scripts/deploy.sh production",
+    "deploy:windows": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "health-check": "curl -f http://localhost:3000/health || exit 1",
+    "migrate": "cd server && node -e \"const { MigrationManager } = require('./dist/utils/migration.js'); const { getDatabase } = require('./dist/database/connection.js'); const db = getDatabase(); const migrationManager = new MigrationManager(db); migrationManager.runMigrations().then(() => db.close()).catch(console.error);\"",
+    "clean": "rm -rf client/dist server/dist build",
+    "clean:windows": "if exist client\\dist rmdir /s /q client\\dist && if exist server\\dist rmdir /s /q server\\dist && if exist build rmdir /s /q build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.3.1",
+    "concurrently": "^8.2.2"
+  }
+}

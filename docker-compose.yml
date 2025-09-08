@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # 메인 애플리케이션
+  wifi-report-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: wifi-report-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - DB_PATH=/app/server/data/wifi_report_prod.db
+      - LOG_LEVEL=info
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX_REQUESTS=100
+    volumes:
+      # 데이터 영속성을 위한 볼륨 마운트
+      - wifi_data:/app/server/data
+      - wifi_logs:/var/log/wifi-report
+    networks:
+      - wifi-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - nginx
+
+  # Nginx 리버스 프록시 (선택사항)
+  nginx:
+    image: nginx:alpine
+    container_name: wifi-report-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - wifi_logs:/var/log/nginx
+    networks:
+      - wifi-network
+    depends_on:
+      - wifi-report-app
+
+  # 모니터링 (Prometheus - 선택사항)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: wifi-report-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - wifi-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+
+  # 모니터링 대시보드 (Grafana - 선택사항)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: wifi-report-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - wifi-network
+    depends_on:
+      - prometheus
+
+# 네트워크 정의
+networks:
+  wifi-network:
+    driver: bridge
+
+# 볼륨 정의
+volumes:
+  wifi_data:
+    driver: local
+  wifi_logs:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
