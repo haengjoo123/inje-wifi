@@ -16,15 +16,17 @@ export const securityHeaders = (req: Request, res: Response, next: NextFunction)
   }
   
   // 콘텐츠 보안 정책
-  const apiUrl = process.env.VITE_API_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://wifi-report-system.onrender.com' : 'http://localhost:3001');
+  const isProduction = process.env.NODE_ENV === 'production';
+  const apiUrl = isProduction ? 'https://inje-wifi.onrender.com' : 'http://localhost:3001';
   
   res.setHeader('Content-Security-Policy', 
     "default-src 'self'; " +
     "script-src 'self' 'unsafe-inline'; " +
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "img-src 'self' data: https:; " +
     "font-src 'self' https://fonts.gstatic.com; " +
-    `connect-src 'self' ${apiUrl};`
+    `connect-src 'self' ${apiUrl} https://inje-wifi.onrender.com;`
   );
   
   // 레퍼러 정책
@@ -137,7 +139,10 @@ export const sanitizeInput = (req: Request, res: Response, next: NextFunction) =
  */
 export const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'];
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [
+      'http://localhost:5173',
+      'https://inje-wifi.onrender.com'
+    ];
     
     // 개발 환경에서는 모든 origin 허용
     if (process.env.NODE_ENV !== 'production') {
