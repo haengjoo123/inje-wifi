@@ -5,13 +5,7 @@ export default defineConfig({
   plugins: [react()],
   build: {
     // 프로덕션 빌드 최적화
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // 콘솔 로그 제거
-        drop_debugger: true, // 디버거 제거
-      },
-    },
+    minify: 'esbuild', // terser 대신 esbuild 사용
     // 청크 분할 최적화
     rollupOptions: {
       output: {
@@ -25,8 +19,8 @@ export default defineConfig({
     },
     // 청크 크기 경고 임계값 (KB)
     chunkSizeWarningLimit: 1000,
-    // 소스맵 생성 (프로덕션에서는 false로 설정 가능)
-    sourcemap: process.env.NODE_ENV !== 'production',
+    // 소스맵 생성 (프로덕션에서는 false로 설정)
+    sourcemap: false,
   },
   server: {
     port: 3000,
