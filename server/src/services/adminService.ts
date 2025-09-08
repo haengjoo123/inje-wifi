@@ -15,10 +15,20 @@ import {
 export class AdminService {
   private readonly ADMIN_KEY = process.env.ADMIN_KEY || 'admin123!@#';
 
+  constructor() {
+    console.log('AdminService initialized with ADMIN_KEY:', this.ADMIN_KEY ? '***설정됨***' : '설정안됨');
+    console.log('Environment NODE_ENV:', process.env.NODE_ENV);
+  }
+
   /**
    * 관리자 키 검증
    */
   verifyAdminKey(providedKey: string): boolean {
+    console.log('Admin key verification:', {
+      provided: providedKey,
+      expected: this.ADMIN_KEY,
+      match: providedKey === this.ADMIN_KEY
+    });
     return providedKey === this.ADMIN_KEY;
   }
 
