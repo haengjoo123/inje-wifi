@@ -177,13 +177,42 @@ export const PROBLEM_TYPES = [
 ] as const;
 export type ProblemType = typeof PROBLEM_TYPES[number];
 
+// Admin Types
+export interface AdminAuthRequest {
+  adminKey: string;
+}
+
+export interface AdminDeleteRequest {
+  reportId: string;
+  adminKey: string;
+}
+
+export interface ExportDataResponse {
+  reports: ReportExportData[];
+  totalCount: number;
+  exportedAt: string;
+}
+
+export interface ReportExportData {
+  id: string;
+  campus: string;
+  building: string;
+  location: string;
+  problemTypes: string;
+  customProblem?: string;
+  description: string;
+  empathyCount: number;
+  createdAt: string;
+}
+
 // Error Codes
 export enum ApiErrorCode {
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   UNAUTHORIZED = 'UNAUTHORIZED',
   NOT_FOUND = 'NOT_FOUND',
   DUPLICATE_EMPATHY = 'DUPLICATE_EMPATHY',
-  SERVER_ERROR = 'SERVER_ERROR'
+  SERVER_ERROR = 'SERVER_ERROR',
+  ADMIN_UNAUTHORIZED = 'ADMIN_UNAUTHORIZED'
 }
 
 // Express Request Extensions

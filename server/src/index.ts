@@ -7,6 +7,7 @@ import path from 'path';
 import reportsRouter from './routes/reports';
 import empathyRouter from './routes/empathy';
 import healthRouter from './routes/health';
+import adminRouter from './routes/admin';
 import { errorHandler, notFoundHandler } from './middleware';
 import { 
   securityHeaders, 
@@ -62,6 +63,7 @@ app.use('/api', apiRateLimit);
 // API Routes
 app.use('/api/reports', reportsRouter);
 app.use('/api/reports', empathyRouter);
+app.use('/api/admin', adminRouter);
 
 // Serve static files from client build (must be after API routes)
 const clientBuildPath = path.join(__dirname, '../../client/dist');

@@ -4,6 +4,7 @@ import ReportFormPage from './pages/ReportFormPage'
 import ReportListPage from './pages/ReportListPage'
 import ReportDetailPage from './pages/ReportDetailPage'
 import ReportEditPage from './pages/ReportEditPage'
+import AdminPage from './pages/AdminPage'
 import Header from './components/common/Header'
 import Footer from './components/common/Footer'
 
@@ -24,6 +25,7 @@ function App() {
             <Route path="/reports" element={<ReportListPage />} />
             <Route path="/reports/:id" element={<ReportDetailPage />} />
             <Route path="/reports/:id/edit" element={<ReportEditPage />} />
+            <Route path="/admin" element={<AdminPage />} />
           </Routes>
         </main>
         <Footer />
